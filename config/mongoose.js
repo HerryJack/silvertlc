@@ -2,15 +2,21 @@
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 
-// use to acces the enivornment variables
+// Access the environment variables
 dotenv.config();
 
-// Mongoose Connect
-mongoose.connect(process.env.MONGOOSE)
-.then( function(){
-    console.log("Connected");
-}).catch(function(err){
-    console.log(err);
-})
+// Mongoose Connection Function
+const connectToDatabase = async () => {
+    try {
+        await mongoose.connect(process.env.MONGOOSE);
+        console.log("Connected to MongoDB");
+    } catch (err) {
+        console.error("Failed to connect to MongoDB:", err);
+    }
+};
 
+// Call the function to connect
+connectToDatabase();
+
+// Export the mongoose connection
 module.exports = mongoose.connection;
