@@ -3,8 +3,9 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 
+// MiddleWares
+const { generateToken } = require("../middlewares/generateToken");
 // Utilities
-const { generateToken } = require("../utils/generateToken");
 const { sendOTP } = require("../utils/sendOTP");
 
 // Models
