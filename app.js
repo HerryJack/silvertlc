@@ -16,7 +16,7 @@ dotenv.config();
 const mongoose = require("./config/mongoose");
 
 // Import Routers
-const authenticationRouter = require("./routes/authenticationRouter");
+const authRouter = require("./routes/authRouter");
 
 // Middleware Configurations
 app.use(cors()); // Enable CORS for frontend connection
@@ -26,7 +26,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public"))); // Serve static files
 
 // Routes
-app.use("/authentication", authenticationRouter);
+app.use("/auth", authRouter);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

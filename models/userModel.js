@@ -1,6 +1,8 @@
 // Import Mongoose Package
 const mongoose = require("mongoose");
 
+const options = { discriminatorKey: 'role', collection: 'users' };
+
 // Make UserSchema 
 const userSchema = mongoose.Schema({
     name: {
@@ -26,10 +28,19 @@ const userSchema = mongoose.Schema({
         type: Date,
         default: Date.now  // Corrected typo here
     },
-    changePassword: Boolean,
+    changePassword: {
+        type: Boolean, 
+        default: false
+    },
     resetPasswordtoken: String,
-    resetPasswordtokenExpiresAt: Number
-}, {timestamps: true});
+    resetPasswordtokenExpiresAt: Number,
+    role: {
+        type: String,
+        required: true,
+        enum: ['Individual', 'Corporate User', 'Service Provider', 'Insurance Company'],
+        default: 'Individual'
+      }
+},options, {timestamps: true});
 
 // Exports User Schema
 module.exports = mongoose.model("user", userSchema);
