@@ -12,7 +12,7 @@ const sendOTP = async (user) => {
 
         // Set OTP details and expiration time (2 minutes from now)
         const otpCode = otp.join(""); // Convert array to a string if needed
-        const otpExpirationTime = Date.now() + 10 * 60 * 1000;
+        const otpExpirationTime = Date.now() + 2 * 60 * 1000;
 
         // Update the user model with OTP and expiration time
         user.resetPasswordtoken = otpCode; 
