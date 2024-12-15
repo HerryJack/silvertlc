@@ -1,12 +1,29 @@
 const User = require('./userModel');
 const mongoose = require("mongoose");
 
-// Schema for Individual 
-const individualSchema = mongoose.Schema({
-  servicesConsume: {
-    type: Array,
-    default: []
+// Lease Form Schema
+const leaseFormSchema = new mongoose.Schema({
+  landlord: String,
+  landlordAddress: String,
+  tenant: String,
+  tenantHomeAddress: String,
+  tenantTradeName: String,
+  demisedProperty: String,
+  leaseTerm: String,
+  commencementDate: Date,
+  rentalForTerm: Number,
+  securityDeposit: Number,
+  totalAtCommencement: Number,
+  permittedUse: String,
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
-module.exports = User.discriminator('Individual', individualSchema);;
+// Schema for Individual 
+const individualSchema = mongoose.Schema({
+  leaseForm: leaseFormSchema
+});
+
+module.exports = User.discriminator('Individual', individualSchema);

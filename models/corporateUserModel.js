@@ -9,4 +9,4 @@ const corporateUserSchema = mongoose.Schema({
   }
 });
 
-module.exports = User.discriminator('Corporate User', corporateUserSchema);;
+module.exports = User.discriminator('Corporate User', corporateUserSchema);

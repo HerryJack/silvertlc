@@ -7,6 +7,7 @@ const bcrypt = require("bcrypt");
 const { generateToken } = require("../middlewares/generateToken");
 // Utilities
 const { sendOTP } = require("../utils/sendOTP");
+// const {generateOTP} = require("../utils/generateOTP");
 
 // Models
 const userModel = require("../models/userModel");
@@ -14,6 +15,10 @@ const individualModel = require("../models/individualModel");
 const corporateUserModel = require("../models/corporateUserModel");
 const insuranceCompanyModel = require("../models/insuranceCompanyModel");
 const serviceProviderModel = require("../models/serviceProviderModel");
+const propertyOwnerModel = require("../models/propertyOwnerModel");
+const hospitalCareModel = require("../models/hospitalCareModel");
+const realEstateModel = require("../models/realEstateModel");
+const nonProfitModel = require("../models/nonProfitModel");
 
 // Test Route (Simple route to check if the service is running)
 router.get("/", (req, res) => {
@@ -38,24 +43,113 @@ router.post("/register", async (req, res) => {
         const salt = await bcrypt.genSalt(10);  // Generate salt for bcrypt
         const hashedPassword = await bcrypt.hash(password, salt);  // Encrypt the password
 
+        // OTP Send
+        const otp_details = sendOTP(email);
+
         // Role-based user creation
         if (role === 'Individual') {
-            await individualModel.create({name: name, email: email, password: hashedPassword, phonenumber: phonenumber, role: role});
-        } else if (role === 'Corporate User') {
-            await corporateUserModel.create({name: name, email: email, password: hashedPassword, phonenumber: phonenumber, role: role});
+            await individualModel.create({name: name, email: email, password: hashedPassword, phonenumber: phonenumber, role: role, verifiedtoken: otp_details.otpCode, verifiedtokenExpiresAt: otp_details.otpExpirationTime});
+        } else if (role === 'Property Owner') {
+            await propertyOwnerModel.create({name: name, email: email, password: hashedPassword, phonenumber: phonenumber, role: role, verifiedtoken: otp_details.otpCode, verifiedtokenExpiresAt: otp_details.otpExpirationTime});
         } else if (role === 'Service Provider') {
-            await serviceProviderModel.create({name: name, email: email, password: hashedPassword, phonenumber: phonenumber, role: role});
-        } else if (role === 'Insurance Company') {
-            await insuranceCompanyModel.create({name: name, email: email, password: hashedPassword, phonenumber: phonenumber, role: role});
-        } else {
+            await serviceProviderModel.create({name: name, email: email, password: hashedPassword, phonenumber: phonenumber, role: role, verifiedtoken: otp_details.otpCode, verifiedtokenExpiresAt: otp_details.otpExpirationTime});
+        } else if (role === 'Hospital System/Managed Care Organizations') {
+            await hospitalCareModel.create({name: name, email: email, password: hashedPassword, phonenumber: phonenumber, role: role, verifiedtoken: otp_details.otpCode, verifiedtokenExpiresAt: otp_details.otpExpirationTime});
+        }else if (role === 'Real Estate Professionals') {
+            await realEstateModel.create({name: name, email: email, password: hashedPassword, phonenumber: phonenumber, role: role, verifiedtoken: otp_details.otpCode, verifiedtokenExpiresAt: otp_details.otpExpirationTime});
+        }else if (role === 'Non Profits') {
+            await nonProfitModel.create({name: name, email: email, password: hashedPassword, phonenumber: phonenumber, role: role, verifiedtoken: otp_details.otpCode, verifiedtokenExpiresAt: otp_details.otpExpirationTime});
+        }   else {
             // If an incorrect role is provided, return a 404 error
             return res.status(404).json({ status: false, message: "Choose Correct Role", error: null });
         }
 
+        // Generate JWT token for the user upon successful login
+        const user = {name, email, role};
+        const token = generateToken(user);
+
         // Successful registration response
-        res.status(201).json({ status: true, message: "Registered Successfully" });
+        res.status(201).json({ status: true, message: "Registered Successfully", data: {token: token}});
     } catch (error) {
         // In case of any error (e.g., database issues), return a server error
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message });
+    }
+});
+
+// Again Send OTP for Verification
+router.post("/otpcheck/account-verified/resend", async (req, res) => {
+    try {
+        const { token } = req.body;
+
+        // Decode the token to extract user data
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
+        } catch (err) {
+            // If token is invalid or expired, return a 401 Unauthorized response
+            return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
+        }
+
+        // Find user by the decoded token's data
+        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
+        if (!user) {
+            return res.status(404).json({ status: false, message: "User not found" });
+        }
+
+        if(user.verified){
+            return res.status(409).json({ status: true, message: "User is already Verified"});
+        }
+
+        // OTP Send
+        const otp_details = sendOTP(user.email);
+
+        // Allow password change by updating user record
+        user.verifiedtoken = otp_details.otpCode;
+        user.verifiedtokenExpiresAt = otp_details.otpExpirationTime;
+        await user.save();
+        
+        // Generate new token for further actions
+        const newToken = generateToken(user);
+        res.status(200).json({ status: true, message: "OTP Send Successfully successfully", data: {userid: user._id, name: user.name, email: user.email, role: user.role, token: newToken}  });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message });
+    }
+});
+
+// OTP Verification Route (Verifies the OTP sent For Account Verification)
+router.post("/otpcheck/account-verified", async (req, res) => {
+    try {
+        const { otp, token } = req.body;
+
+        // Decode the token to extract user data
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
+        } catch (err) {
+            // If token is invalid or expired, return a 401 Unauthorized response
+            return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
+        }
+
+        // Find user by the decoded token's data
+        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
+        if (!user) {
+            return res.status(404).json({ status: false, message: "User not found" });
+        }
+
+        // Check if OTP is correct and verify its expiration time
+        if (otp !== user.verifiedtoken || Date.now() > user.verifiedtokenExpiresAt) {
+            return res.status(401).json({ status: false, message: "Invalid or expired OTP" });
+        }
+
+        // True ---> User Account Verified
+        user.verified = true;
+        await user.save();
+
+        // Generate new token for further actions
+        const newToken = generateToken(user);
+        res.status(200).json({ status: true, message: "Account Verified verified successfully", data: {userid: user._id, name: user.name, email: user.email, role: user.role, token: newToken}  });
+    } catch (error) {
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message });
     }
@@ -64,12 +158,17 @@ router.post("/register", async (req, res) => {
 // User Login Route (Handles user authentication and token generation)
 router.post("/login", async (req, res) => {
     try {
-        const { email, password, role } = req.body;
+        const { email, password} = req.body;
 
         // Find user based on email and role
-        const user = await userModel.findOne({ email, role });
+        const user = await userModel.findOne({ email});
         if (!user) {
             return res.status(404).json({ status: false, message: "Invalid email or password" });
+        }
+
+        // If User Account is not verified
+        if (!user.verified) {
+            return res.status(409).json({ status: false, message: "User Account is not Verified" });
         }
 
         // Compare provided password with the hashed password stored in the database
@@ -80,7 +179,7 @@ router.post("/login", async (req, res) => {
 
         // Generate JWT token for the user upon successful login
         const token = generateToken(user);
-        res.status(200).json({ status: true, message: "Login Successful", token });
+        res.status(200).json({ status: true, message: "Login Successful", data: {userid: user._id, name: user.name, email: user.email, role: user.role, token: token} });
     } catch (error) {
         // Handle server errors gracefully
         console.error(error);
@@ -99,12 +198,19 @@ router.post("/forgotpassword", async (req, res) => {
             return res.status(404).json({ status: false, message: "User not found" });
         }
 
-        // Send OTP to user and generate a token for further steps
-        await sendOTP(user);
+        // OTP Send
+        const otp_details = sendOTP(user.email);
+
+        // Allow password change by updating user record
+        user.resetPasswordtoken = otp_details.otpCode;
+        user.resetPasswordtokenExpiresAt = otp_details.otpExpirationTime;
+        await user.save();
+
+        // Generate new token for further actions
         const token = generateToken(user);
 
         // Return success response with token
-        res.status(200).json({ status: true, message: "OTP sent successfully", token });
+        res.status(200).json({ status: true, message: "OTP sent successfully", data: {userid: user._id, name: user.name, email: user.email, role: user.role, token: token}  });
     } catch (error) {
         // Handle any unexpected errors
         console.error(error);
@@ -132,6 +238,11 @@ router.post("/otpcheck", async (req, res) => {
             return res.status(404).json({ status: false, message: "User not found" });
         }
 
+        // If User Account is not verified
+        if (!user.verified) {
+            return res.status(409).json({ status: false, message: "User Account is not Verified" });
+        }
+
         // Check if OTP is correct and verify its expiration time
         if (otp !== user.resetPasswordtoken || Date.now() > user.resetPasswordtokenExpiresAt) {
             return res.status(401).json({ status: false, message: "Invalid or expired OTP" });
@@ -143,7 +254,7 @@ router.post("/otpcheck", async (req, res) => {
 
         // Generate new token for further actions
         const newToken = generateToken(user);
-        res.status(200).json({ status: true, message: "OTP verified successfully", token: newToken });
+        res.status(200).json({ status: true, message: "OTP verified successfully", data: {userid: user._id, name: user.name, email: user.email, role: user.role, token: newToken}  });
     } catch (error) {
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message });
@@ -170,6 +281,11 @@ router.post("/changepassword", async (req, res) => {
             return res.status(404).json({ status: false, message: "User not found" });
         }
 
+        // If User Account is not verified
+        if (!user.verified) {
+            return res.status(409).json({ status: false, message: "User Account is not Verified" });
+        }
+
         // Ensure the user is authorized to change their password
         if (!user.changePassword) {
             return res.status(403).json({ status: false, message: "Password change not authorized" });
@@ -184,7 +300,7 @@ router.post("/changepassword", async (req, res) => {
 
         // Generate new token with updated information
         const newToken = generateToken(user);
-        res.status(200).json({ status: true, message: "Password changed successfully", token: newToken });
+        res.status(200).json({ status: true, message: "Password changed successfully", data: {userid: user._id, name: user.name, email: user.email, role: user.role, token: newToken}  });
     } catch (error) {
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message });

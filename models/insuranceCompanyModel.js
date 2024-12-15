@@ -9,4 +9,4 @@ const insuranceCompanySchema = mongoose.Schema({
   }
 });
 
-module.exports = User.discriminator('Insurance Company', insuranceCompanySchema);;
+module.exports = User.discriminator('Insurance Company', insuranceCompanySchema);

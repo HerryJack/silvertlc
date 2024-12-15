@@ -2,11 +2,11 @@ const User = require('./userModel');
 const mongoose = require("mongoose");
 
 // Schema for Service Provider
-const serviceProviderSchema = mongoose.Schema({
-  servicesProvider: {
+const nonProfitModel = mongoose.Schema({
+  nonProfit: {
     type: Array,
     default: []
   }
 });
 
-module.exports = User.discriminator('Service Provider', serviceProviderSchema);
+module.exports = User.discriminator('Non Profits', nonProfitModel);
