@@ -7,6 +7,26 @@ const serviceProviderSchema = mongoose.Schema({
     type: Array,
     default: []
   }
+
+  // userAdditionalDetails:{
+  //   firstName: String,
+  //   lastName: String,
+  //   phonenumber: {
+  //     type: String,
+  //     unique: true,
+  //   },
+  //   address: String,
+  //   city: String,
+  //   state: String,
+  //   zip: String,
+  //   email: {
+  //     type: String,
+  //     unique: true
+  //   },
+  //   education: String,
+  //   countryOfBirth: String,
+  //   birthOfDate: String
+  // }
 });
 
-module.exports = User.discriminator('Service Provider', serviceProviderSchema);;
+module.exports = User.discriminator('Service Provider', serviceProviderSchema);

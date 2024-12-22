@@ -8,7 +8,6 @@ const userSchema = mongoose.Schema({
     name: {
         type: String,
         required: true,
-        // Remove the 'unique' constraint here
     },
     email: {
         type: String,
@@ -21,7 +20,6 @@ const userSchema = mongoose.Schema({
     },
     phonenumber: {
         type: String,
-        unique: true,
         required: true
     },
     lastlogin: {
@@ -34,10 +32,16 @@ const userSchema = mongoose.Schema({
     },
     resetPasswordtoken: String,
     resetPasswordtokenExpiresAt: Number,
+    verifiedtoken: String,
+    verifiedtokenExpiresAt: Number,
+    verified:{
+        type: Boolean,
+        default: false
+    },
     role: {
         type: String,
         required: true,
-        enum: ['Individual', 'Corporate User', 'Service Provider', 'Insurance Company'],
+        enum: ['Individual', 'Property Owner', 'Hospital System/Managed Care Organizations', 'Real Estate Professionals', 'Service Provider', 'Non Profits'],
         default: 'Individual'
       }
 },options, {timestamps: true});
