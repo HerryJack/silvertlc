@@ -7,7 +7,6 @@ const bodyParser = require("body-parser");
 const dotenv = require("dotenv");
 const fileUpload = require("express-fileupload");
 
-
 // Initialize Express App
 const app = express();
 
