@@ -22,18 +22,67 @@ router.get("/", (req, res) => {
     res.send("Corporate is Running");
 });
 
+// File Upload Route
+router.post("/upload-file", async (req, res) => {
+    try {
+        // Check if file is uploaded
+        if (!req.files || !req.files.uploadFiles) {
+            return res.status(400).json({ status: false, message: "No file uploaded" });
+        }
+
+        // Extract the file from the request
+        const file = req.files.uploadFiles;
+
+        console.log(file)
+
+        // Extract token and foldername from request body
+        let {token, foldername } = req.body;  
+
+        if(!foldername || !token){
+            return res.status(400).send({status: false, message: "Required fields are missing"})
+        }
+        
+        // Check token data is in the string format or not
+         if (typeof token === 'string') {
+            token = JSON.parse(token);
+        }
+        // Verify the token
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
+        } catch (err) {
+            return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
+        }
+
+        // Find the user based on the decoded token
+        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
+        if (!user) {
+            return res.status(404).json({ status: false, message: "User not found" });
+        }
+
+        // Check if the user has the correct role
+        if (user.role !== "Service Provider") {
+            return res.status(403).json({ status: false, message: "Access denied. Insufficient permissions" });
+        }
+
+        // Upload the file to Cloudinary
+        const uploadFile_URL_arr = await uploadFile(file, foldername);  // Upload the file to Cloudinary
+
+        // Return the URL of the uploaded file
+        res.status(200).json({ status: true, message: "File uploaded successfully", filesURL: uploadFile_URL_arr });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message });
+    }
+});
+
 // Non-Profit Form Router
 // ? Create
 router.post("/nonprofit-form/submit", async(req,res) => {
     try{
 
         let {nonProfitFormData, token} = req.body;
-
-        // Check both the data is in the string format or not
-        if (typeof nonProfitFormData === 'string' || typeof token === 'string') {
-            nonProfitFormData = JSON.parse(nonProfitFormData);
-            token = JSON.parse(token);
-        }
         
         if(!nonProfitFormData){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
@@ -72,15 +121,10 @@ router.post("/nonprofit-form/submit", async(req,res) => {
                 valueStatement,
                 servicesOffered,
                 industryInformation,
-            }
+            },
+            uploadFiles
         } = nonProfitFormData;
 
-        
-        // Check If there is no File is uploaded
-        const file = req.files.uploadFiles;
-        if (!file) {
-            return res.status(400).json({status: false, message: "No file uploaded" });
-        }
 
         // Decode the token to extract user data
         let decoded;
@@ -101,9 +145,6 @@ router.post("/nonprofit-form/submit", async(req,res) => {
         if(user.role !== "Service Provider"){
             return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
         }
-
-        // Function to Upload the Files on Cloudinary One by One
-        const uploadFile_URL_arr = await uploadFile(file);
 
         // Add No Profit Form data in Corporate user model
         const noProfit_form = await nonProfile_Form_Model.create({ 
@@ -140,7 +181,7 @@ router.post("/nonprofit-form/submit", async(req,res) => {
                 servicesOffered,
                 industryInformation,
             },
-            uploadFiles : uploadFile_URL_arr,
+            uploadFiles : uploadFiles,
             createdAt: new Date()
         });
 
@@ -207,13 +248,6 @@ router.put("/nonprofit-form/update", async(req,res) => {
 
         let {nonProfitFormData, form_id, token} = req.body;
 
-        // Check both the data is in the string format or not
-        if (typeof nonProfitFormData === 'string' || typeof token === 'string' || typeof form_id === 'string') {
-            nonProfitFormData = JSON.parse(nonProfitFormData);
-            token = JSON.parse(token);
-            form_id = JSON.parse(form_id);
-        }
-        
         if(!nonProfitFormData || !form_id){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
         }
@@ -252,13 +286,8 @@ router.put("/nonprofit-form/update", async(req,res) => {
                 servicesOffered,
                 industryInformation,
             },
+            uploadFiles
         } = nonProfitFormData;
-
-        // Check If there is no File is uploaded
-        const file = req.files.uploadFiles;
-        if (!file) {
-            return res.status(400).json({status: false, message: "No file uploaded" });
-        }
 
         // Decode the token to extract user data
         let decoded;
@@ -282,15 +311,12 @@ router.put("/nonprofit-form/update", async(req,res) => {
 
         // File Uploader Check 
         let fileUploader = false;
-        let uploadFile_URL_arr;
 
         // Check File is in Array Format or Not
-        if (Array.isArray(file)){
-            if(file.length>0){
+        if (Array.isArray(uploadFiles)){
+            if(uploadFiles.length>0){
                 // Ture File Uploader if array length is greater than 0
                 fileUploader = true
-                // Function to Upload the Files on Cloudinary One by One
-                uploadFile_URL_arr = await uploadFile(file);
             }
         }else{
             return res.status(409).send({status: false, message: "File Sending Format is Wrong"});
@@ -345,7 +371,7 @@ router.put("/nonprofit-form/update", async(req,res) => {
         // Update the Files 
         if (fileUploader) {
             // Push the files into the UploadFiles Array
-            noProfit_form.uploadFiles.push(...uploadFile_URL_arr);
+            noProfit_form.uploadFiles.push(...uploadFiles);
             await noProfit_form.save();
         }
 
@@ -414,12 +440,6 @@ router.post("/postservice-form/submit", async(req,res) => {
 
         let {postServiceFormData, token} = req.body;
 
-        // Check both the data is in the string format or not
-        if (typeof postServiceFormData === 'string' || typeof token === 'string') {
-            postServiceFormData = JSON.parse(postServiceFormData);
-            token = JSON.parse(token);
-        }
-        
         if(!postServiceFormData){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
         }
@@ -463,13 +483,8 @@ router.post("/postservice-form/submit", async(req,res) => {
                 petsAllowed,
                 smokingAllowed
               },
+              uploadFiles
         } = postServiceFormData;
-
-        // Check If there is no File is uploaded
-        const file = req.files.uploadFiles;
-        if (!file) {
-            return res.status(400).json({status: false, message: "No file uploaded" });
-        }
 
         // Decode the token to extract user data
         let decoded;
@@ -490,9 +505,6 @@ router.post("/postservice-form/submit", async(req,res) => {
         if(user.role !== "Service Provider"){
             return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
         }
-        
-        // Function to Upload the Files on Cloudinary One by One
-        const uploadFile_URL_arr = await uploadFile(file);
 
         // Add Post Service form data in Corporate user model
         const postservice = await postService_Form_Model.create({ 
@@ -534,7 +546,7 @@ router.post("/postservice-form/submit", async(req,res) => {
                 petsAllowed,
                 smokingAllowed
               },
-              uploadFiles: uploadFile_URL_arr,
+              uploadFiles: uploadFiles,
             createdAt: new Date()
         });
 
@@ -600,13 +612,6 @@ router.put("/postservice-form/update", async(req,res) => {
     try{
 
         let {postServiceFormData, form_id, token} = req.body;
-
-        // Check both the data is in the string format or not
-        if (typeof postServiceFormData === 'string' || typeof token === 'string' || typeof form_id === 'string') {
-            postServiceFormData = JSON.parse(postServiceFormData);
-            token = JSON.parse(token);
-            form_id = JSON.parse(form_id);
-        }
         
         if(!postServiceFormData || !form_id){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
@@ -651,13 +656,8 @@ router.put("/postservice-form/update", async(req,res) => {
                 petsAllowed,
                 smokingAllowed
               },
+              uploadFiles
         } = postServiceFormData;
-
-        // Check If there is no File is uploaded
-        const file = req.files.uploadFiles;
-        if (!file) {
-            return res.status(400).json({status: false, message: "No file uploaded" });
-        }
 
         // Decode the token to extract user data
         let decoded;
@@ -681,15 +681,12 @@ router.put("/postservice-form/update", async(req,res) => {
 
         // File Uploader Check 
         let fileUploader = false;
-        let uploadFile_URL_arr;
 
         // Check File is in Array Format or Not
-        if (Array.isArray(file)){
-            if(file.length>0){
+        if (Array.isArray(uploadFiles)){
+            if(uploadFiles.length>0){
                 // Ture File Uploader if array length is greater than 0
-                fileUploader = true
-                // Function to Upload the Files on Cloudinary One by One
-                uploadFile_URL_arr = await uploadFile(file);
+                fileUploader = true;
             }
         }else{
             return res.status(409).send({status: false, message: "File Sending Format is Wrong"});
@@ -748,7 +745,7 @@ router.put("/postservice-form/update", async(req,res) => {
         // Update Files 
         if (fileUploader) {
             // Push the files into the UploadFiles Array
-            postservice.uploadFiles.push(...uploadFile_URL_arr);
+            postservice.uploadFiles.push(...uploadFiles);
             await postservice.save();
         }
 
@@ -815,12 +812,6 @@ router.post("/transport-form/submit", async(req,res) => {
     try{
 
         let {transportFormData, token} = req.body;
-    
-        // Check both the data is in the string format or not
-        if (typeof transportFormData === 'string' || typeof token === 'string') {
-            transportFormData = JSON.parse(transportFormData);
-            token = JSON.parse(token);
-        }
 
         // Check Transform data
         if(!transportFormData){
@@ -840,13 +831,8 @@ router.post("/transport-form/submit", async(req,res) => {
                 companions,
                 waitTime,
             },
+            uploadFiles
         } = transportFormData;
-
-        // Check If there is no File is uploaded
-        const file = req.files.uploadFiles;
-        if (!file) {
-            return res.status(400).json({status: false, message: "No file uploaded" });
-        }
 
         // Decode the token to extract user data
         let decoded;
@@ -868,9 +854,6 @@ router.post("/transport-form/submit", async(req,res) => {
             return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
         }
 
-        // Function to Upload the Files on Cloudinary One by One
-        const uploadFile_URL_arr = await uploadFile(file);
-
         // Add transport form data 
         const transport = await transport_Form_Model.create({ 
             userId: user._id,
@@ -886,7 +869,7 @@ router.post("/transport-form/submit", async(req,res) => {
                 companions,
                 waitTime,
             },
-            uploadFiles : uploadFile_URL_arr,
+            uploadFiles : uploadFiles,
             createdAt: new Date()
         });
 
@@ -952,13 +935,6 @@ router.put("/transport-form/update", async(req,res) => {
     try{
 
         let {transportFormData, form_id, token} = req.body;
-
-         // Check both the data is in the string format or not
-         if (typeof transportFormData === 'string' || typeof token === 'string' || typeof form_id === 'string') {
-            transportFormData = JSON.parse(transportFormData);
-            token = JSON.parse(token);
-            form_id = JSON.parse(form_id);
-        }
         
         if(!transportFormData || !form_id){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
@@ -978,13 +954,8 @@ router.put("/transport-form/update", async(req,res) => {
                 companions,
                 waitTime,
             },
+            uploadFiles
         } = transportFormData;
-
-        // Check If there is no File is uploaded
-        const file = req.files.uploadFiles;
-        if (!file) {
-            return res.status(400).json({status: false, message: "No file uploaded" });
-        }
 
         // Decode the token to extract user data
         let decoded;
@@ -1008,15 +979,12 @@ router.put("/transport-form/update", async(req,res) => {
 
         // File Uploader Check 
         let fileUploader = false;
-        let uploadFile_URL_arr;
 
         // Check File is in Array Format or Not
-        if (Array.isArray(file)){
-            if(file.length>0){
+        if (Array.isArray(uploadFiles)){
+            if(uploadFiles.length>0){
                 // Ture File Uploader if array length is greater than 0
-                fileUploader = true
-                // Function to Upload the Files on Cloudinary One by One
-                uploadFile_URL_arr = await uploadFile(file);
+                fileUploader = true;
             }
         }else{
             return res.status(409).send({status: false, message: "File Sending Format is Wrong"});
@@ -1050,7 +1018,7 @@ router.put("/transport-form/update", async(req,res) => {
         // Update Files
         if (fileUploader) {
             // Push the files into the UploadFiles Array
-            transport.uploadFiles.push(...uploadFile_URL_arr);
+            transport.uploadFiles.push(...uploadFiles);
             await transport.save();
         }
 
@@ -1118,11 +1086,6 @@ router.post("/service-form/submit", async(req,res) => {
 
         let {serviceFormData, token} = req.body;
 
-        // Check both the data is in the string format or not
-        if (typeof serviceFormData === 'string' || typeof token === 'string') {
-            serviceFormData = JSON.parse(serviceFormData);
-            token = JSON.parse(token);
-        }
         if(!serviceFormData){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
         }
@@ -1144,14 +1107,9 @@ router.post("/service-form/submit", async(req,res) => {
                 advanceServiceShedule,
                 indrustry2,
                 serviceProvided2,
-            }
+            },
+            uploadFiles
         } = serviceFormData;
-
-        // Check If there is no File is uploaded
-        const file = req.files.uploadFiles;
-        if (!file) {
-            return res.status(400).json({status: false, message: "No file uploaded" });
-        }
 
         // Decode the token to extract user data
         let decoded;
@@ -1172,9 +1130,6 @@ router.post("/service-form/submit", async(req,res) => {
         if(user.role !== "Service Provider"){
             return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
         }
-        
-        // Function to Upload the Files on Cloudinary One by One
-        const uploadFile_URL_arr = await uploadFile(file);
 
         // Add Service form data in Corporate User model
         const service = await service_Form_Model.create({ 
@@ -1195,7 +1150,7 @@ router.post("/service-form/submit", async(req,res) => {
                 indrustry2,
                 serviceProvided2,
             },
-            uploadFiles : uploadFile_URL_arr,
+            uploadFiles : uploadFiles,
             createdAt: new Date()
         });
 
@@ -1261,13 +1216,6 @@ router.put("/service-form/update", async(req,res) => {
     try{
 
         let {serviceFormData, form_id, token} = req.body;
-
-         // Check both the data is in the string format or not
-         if (typeof serviceFormData === 'string' || typeof token === 'string' || typeof form_id === 'string') {
-            serviceFormData = JSON.parse(serviceFormData);
-            token = JSON.parse(token);
-            form_id = JSON.parse(form_id);
-        }
         
         if(!serviceFormData || !form_id){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
@@ -1291,13 +1239,8 @@ router.put("/service-form/update", async(req,res) => {
                 indrustry2,
                 serviceProvided2,
             },
+            uploadFiles
         } = serviceFormData;
-
-        // Check If there is no File is uploaded
-        const file = req.files.uploadFiles;
-        if (!file) {
-            return res.status(400).json({status: false, message: "No file uploaded" });
-        }
 
         // Decode the token to extract user data
         let decoded;
@@ -1321,15 +1264,12 @@ router.put("/service-form/update", async(req,res) => {
 
         // File Uploader Check 
         let fileUploader = false;
-        let uploadFile_URL_arr;
 
         // Check File is in Array Format or Not
-        if (Array.isArray(file)){
-            if(file.length>0){
+        if (Array.isArray(uploadFiles)){
+            if(uploadFiles.length>0){
                 // Ture File Uploader if array length is greater than 0
-                fileUploader = true
-                // Function to Upload the Files on Cloudinary One by One
-                uploadFile_URL_arr = await uploadFile(file);
+                fileUploader = true;
             }
         }else{
             return res.status(409).send({status: false, message: "File Sending Format is Wrong"});
@@ -1367,7 +1307,7 @@ router.put("/service-form/update", async(req,res) => {
         // Update Files
         if (fileUploader) {
             // Push the files into the UploadFiles Array
-            service.uploadFiles.push(...uploadFile_URL_arr);
+            service.uploadFiles.push(...uploadFiles);
             await service.save();
         }
 

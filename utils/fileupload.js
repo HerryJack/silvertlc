@@ -1,7 +1,7 @@
 const  {uploadFileToCloudinary} = require("./cloudinary");
 
 // Function to Upload File to Cloudinary
-const uploadFile = async (file) => {
+const uploadFile = async (file, foldername) => {
     try {
         let uploadFile_URL_arr = [];
         
@@ -9,7 +9,7 @@ const uploadFile = async (file) => {
         if (Array.isArray(file)) {
             for (const image of file) {
                 // File Upload
-                const uploadFile_URL = await uploadFileToCloudinary(image.tempFilePath, "Corporate User | Transport Form | Files" );
+                const uploadFile_URL = await uploadFileToCloudinary(image.tempFilePath, foldername );
 
                 // If File is not Uploaded Successfully
                 if (!uploadFile_URL) {
@@ -20,7 +20,7 @@ const uploadFile = async (file) => {
                 uploadFile_URL_arr.push(uploadFile_URL.secure_url);
             }
             return uploadFile_URL_arr;
-        }else{
+        } else{
             throw new Error("File Sending Format is Wrong");
         }
     } catch (error) {
