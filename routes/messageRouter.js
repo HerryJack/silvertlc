@@ -1,12 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
 
-// MiddleWares
-const { generateToken } = require("../middlewares/generateToken");
-// Utilities
-const { sendOTP } = require("../utils/sendOTP");
+// 
 const userModel = require("../models/Role/userModel");
 const messageModel = require("../models/Message/MessageModel");
 const chatRoomModel = require("../models/Message/CharRoomModel");
