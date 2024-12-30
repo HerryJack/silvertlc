@@ -32,6 +32,10 @@ const chatroomSchema = mongoose.Schema({
         email:{
             type: String,
             required: true
+        },
+        unreadCount: {
+            type: Number,
+            default: 0
         }
     }],
     createdAt:{

@@ -1,15 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const jwt = require("jsonwebtoken");
-
-// MiddleWares
-const { generateToken } = require("../middlewares/generateToken");
 
 // Models
-const userModel = require("../models/userModel");
-const individualModel = require("../models/individualModel");
 const rentalApplicationModel = require("../models/Form/Individual/RentalApplicationModel");
 const leaseFormModel = require("../models/Form/Individual/LeaseFormModel");
+const IndividualProfileFormModel = require("../models/Form/Individual/IndividualProfileFormModel");
+const { checkTokenVerify } = require("../middlewares/checkTokenVerify");
 
 
 // Test Route (Simple route to check if the service is running)
@@ -17,11 +13,225 @@ router.get("/", (req, res) => {
     res.send("Individual is Running");
 });
 
-// Lease Form Submission Router
-router.post("/leaseform/submit", async(req,res) => {
+// Profile Form Router
+// ? Create
+router.post("/profile-form/submit", checkTokenVerify, async(req,res) => {
     try{
 
-        let {leaseFormData, token} = req.body;
+        let {profileFormData} = req.body;
+
+        // Middleware Data
+        const user = req.user;
+        
+        if(!profileFormData){
+            return res.status(400).json({status: false, message:  "Required fields are missing"})
+        }
+
+        // Destructuring Profile form data
+        const {
+            personalDetails: {
+                firstName,
+                lastName,
+                mobileNumber,
+                address,
+                city,
+                state,
+                zip,
+                email,
+                education,
+                countryOfBirth,
+                birthDate,
+            }
+        } = profileFormData;
+
+        if(!profileFormData.personalDetails){
+            return res.status(400).json({status: false, message:  "Required fields are missing"})
+        }
+
+        // Check the given user role is Individual or not
+        if(user.role !== "Individual"){
+            return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
+        }
+
+        // Add Profile Form data in Individual Profile Form Model
+        const individualprofile_form = await IndividualProfileFormModel.create({ 
+            userId: user._id,
+            role: user.role,
+            personalDetails: {
+                firstName,
+                lastName,
+                mobileNumber,
+                address,
+                city,
+                state,
+                zip,
+                email,
+                education,
+                countryOfBirth,
+                birthDate,
+            },
+            createdAt: new Date()
+        });
+
+        if (!individualprofile_form) {
+            return res.status(404).json({ status: false, message: "Something Went Wrong While Submitting" });
+        }
+
+        // Profile Form Submitted Successfully
+        res.status(200).json({status: true, message: `${user.role} user profile form submitted successfully`});
+
+    }catch(error){
+        // Handle server errors 
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+});
+
+// ? Read
+router.post("/profile-form/get", checkTokenVerify, async(req,res) => {
+    try{
+
+        // Middleware data
+        const user = req.user;
+        
+        // Check the given user role is Individual or not
+        if(user.role !== "Individual"){
+            return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
+        }
+
+        // Get the Individual Profile Form Data
+        const individualprofile_form = await IndividualProfileFormModel.find({ userId: user._id });
+
+        if (!individualprofile_form) {
+            return res.status(404).json({ status: false, message: "Id is incorrect or may be other technical problem" });
+        }
+
+        // Profile Form Data Send Successfully
+        res.status(200).json({status: true, message: `${user.role} user profile form data send successfully`, form_data: individualprofile_form});
+
+    }catch(error){
+        // Handle server errors
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+});
+
+// ? Update
+router.put("/profile-form/update", checkTokenVerify, async(req,res) => {
+    try{
+
+        let {profileFormData, form_id} = req.body;
+
+        // Middleware data
+        const user = req.user;
+
+        if(!profileFormData || !form_id){
+            return res.status(400).json({status: false, message:  "Required fields are missing"})
+        }
+
+        // Destructuring profile form data
+        const {
+            personalDetails: {
+                firstName,
+                lastName,
+                mobileNumber,
+                address,
+                city,
+                state,
+                zip,
+                email,
+                education,
+                countryOfBirth,
+                birthDate,
+            }
+        } = profileFormData;
+        
+        // Check the given user role is Individual or not
+        if(user.role !== "Individual"){
+            return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
+        }
+
+        // Update Individual profile form data
+        const individualprofile_form = await IndividualProfileFormModel.findOneAndUpdate(
+            { _id: form_id },
+            {
+                $set: {
+                    personalDetails: {
+                        firstName,
+                        lastName,
+                        mobileNumber,
+                        address,
+                        city,
+                        state,
+                        zip,
+                        email,
+                        education,
+                        countryOfBirth,
+                        birthDate,
+                    }
+                }
+            },
+            { new: true }
+        );
+
+        if (!individualprofile_form) {
+            return res.status(404).json({ status: false, message: "Id is incorrect or may be other technical problem" });
+        }
+
+        // Profile Form Updated Successfully
+        res.status(200).json({status: true, message: `${user.role} user profile form updated successfully`});
+
+    }catch(error){
+        // Handle server errors
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+});
+
+// ? Delete
+router.delete("/profile-form/delete", checkTokenVerify, async(req,res) => {
+    try{
+
+        let {form_id} = req.body;
+
+        // Middleware data
+        const user = req.user;
+
+        if(!form_id){
+            return res.status(400).json({status: false, message:  "Required fields are missing"})
+        }
+        
+        // Check the given user role is Individual or not
+        if(user.role !== "Individual"){
+            return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
+        }
+
+        // Delete profile form data
+        const individualprofile_form = await IndividualProfileFormModel.findOneAndDelete({ _id: form_id });
+
+        if (!individualprofile_form) {
+            return res.status(404).json({ status: false, message: "Id is incorrect or may be other technical problem" });
+        }
+
+        // Profile Form Deleted Successfully
+        res.status(200).json({status: true, message: `${user.role} user profile form deleted successfully`});
+
+    }catch(error){
+        // Handle server errors
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+});
+
+// Lease Form Router
+// ? Create
+router.post("/leaseform/submit", checkTokenVerify, async(req,res) => {
+    try{
+
+        let {leaseFormData} = req.body;
+
+        // Middleware data
+        const user = req.user;
         
         if(!leaseFormData){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
@@ -42,21 +252,6 @@ router.post("/leaseform/submit", async(req,res) => {
             totalAtCommencement,
             permittedUse
         } = leaseFormData;
-
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
         
         // Check if the given user role is Individual or not
         if(user.role !== "Individual"){
@@ -86,32 +281,18 @@ router.post("/leaseform/submit", async(req,res) => {
         res.status(200).json({status: true, message: "Lease Form Submitted Successfully"});
 
     }catch(error){
-        // Handle server errors gracefully
+        // Handle server errors
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
     }
 });
 
-// Lease Form Get Data Router
-router.post("/leaseform/get-data", async(req,res) => {
+// ? Read
+router.post("/leaseform/get", checkTokenVerify, async(req,res) => {
     try{
 
-        let {token} = req.body;
-
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
+        // Middleware data
+        const user = req.user;
         
         // Check if the given user role is Individual or not
         if(user.role !== "Individual"){
@@ -121,21 +302,23 @@ router.post("/leaseform/get-data", async(req,res) => {
         // Get the Lease Form data
         const leaseForm_data = await leaseFormModel.find({userId: user._id});
 
-        // Lease Form Submitted Successfully
         res.status(200).json({status: true, message: "Lease Form Data", leaseFormData: leaseForm_data});
 
     }catch(error){
-        // Handle server errors gracefully
+        // Handle server errors
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
     }
 });
 
-// Lease Form Update
-router.put("/leaseform/update", async(req,res) => {
+// ? Update
+router.put("/leaseform/update", checkTokenVerify, async(req,res) => {
     try{
 
-        let {leaseFormData, form_id, token} = req.body;
+        let {leaseFormData, form_id} = req.body;
+
+        // Middleware data
+        const user = req.user;
         
         if(!leaseFormData || !form_id){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
@@ -156,27 +339,11 @@ router.put("/leaseform/update", async(req,res) => {
             totalAtCommencement,
             permittedUse
         } = leaseFormData;
-
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
         
         // Check if the given user role is Individual or not
         if(user.role !== "Individual"){
             return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
         }
-
         
         // Update Lease form data 
         const leaseform = await leaseFormModel.findOneAndUpdate(
@@ -207,35 +374,23 @@ router.put("/leaseform/update", async(req,res) => {
         res.status(200).json({status: true, message: "Lease Form Updated Successfully"});
 
     }catch(error){
-        // Handle server errors gracefully
+        // Handle server errors
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
     }
 });
 
-// Lease Form Update
-router.delete("/leaseform/update", async(req,res) => {
+// ? Delete
+router.delete("/leaseform/delete", checkTokenVerify, async(req,res) => {
     try{
 
-        let {form_id, token} = req.body;
+        let {form_id} = req.body;
+
+        // Middleware data
+        const user = req.user;
         
         if(!form_id){
-            return res.status(400).json({status: false, message:  "Required fields are missing"})
-        }
-
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
+            return res.status(400).json({status: false, message: "Required fields are missing"})
         }
         
         // Check if the given user role is Individual or not
@@ -244,13 +399,12 @@ router.delete("/leaseform/update", async(req,res) => {
         }
 
         // Lease Form Delete
-        const leaseform = leaseFormModel.findOneAndDelete({_id: form_id})
-
+        const leaseform = await leaseFormModel.findOneAndDelete({_id: form_id});
         if(!leaseform){
             return res.status(404).json({ status: false, message: "Id is incorrect or may be any technical problem" });
         }
 
-        // Lease Form Updated Successfully
+        // Lease Form Deleted Successfully
         res.status(200).json({status: true, message: "Lease Form Deleted Successfully"});
 
     }catch(error){
@@ -260,32 +414,21 @@ router.delete("/leaseform/update", async(req,res) => {
     }
 });
 
-// Rental Application Submission Router
-router.post("/rentalapplication/submit", async(req,res) => {
+// Rental Application Router
+// ? Create
+router.post("/rentalapplication/submit", checkTokenVerify, async(req,res) => {
     try{
 
         // Get Date From the body
-        let {rentalapplicationdata, token} = req.body;
+        let {rentalapplicationdata} = req.body;
+
+        // Middleware data
+        const user = req.user;
         
         if(!rentalapplicationdata){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
         }
 
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
-        
         // Check if the given user role is Individual or not
         if(user.role !== "Individual"){
             return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
@@ -400,37 +543,21 @@ router.post("/rentalapplication/submit", async(req,res) => {
             createdAt: new Date()
         });
 
-        // Lease Form Submitted Successfully
-        res.status(200).json({status: true, message: "Lease Form Submitted Successfully"});
+        // Rental Application Form Submitted Successfully
+        res.status(200).json({status: true, message: "Rental Application Form Submitted Successfully"});
 
     }catch(error){
-        // Handle server errors gracefully
+        // Handle server errors
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
     }
 });
 
-// Rental Application Get Data Router
-router.post("/rentalapplication/get-data", async(req,res) => {
+// ? Read
+router.post("/rentalapplication/get", checkTokenVerify, async(req,res) => {
     try{
-
-        // Get Date From the body
-        let {token} = req.body;
-
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
+        // Middleware Data
+        const user = req.user;
         
         // Check if the given user role is Individual or not
         if(user.role !== "Individual"){
@@ -438,48 +565,35 @@ router.post("/rentalapplication/get-data", async(req,res) => {
         }
 
         // Get Rental Application Data
-        const rentalapplication = await rentalApplicationModel.find({_id: form_id});
+        const rentalapplication = await rentalApplicationModel.find({userId: user._id});
 
         // Rental Application Form Data Sent Successfully
         res.status(200).json({status: true, message: "Rental Application Form", rentalApplication_data: rentalapplication});
 
     }catch(error){
-        // Handle server errors gracefully
+        // Handle server errors
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
     }
 });
 
-// Rental Application Form Update
-router.put("/rentalapplication/update", async(req,res) => {
+// ? Update
+router.put("/rentalapplication/update", checkTokenVerify, async(req,res) => {
     try{
 
-        let {rentalapplicationdata, form_id, token} = req.body;
+        let {rentalapplicationdata, form_id} = req.body;
+
+        // Middleware data
+        const user = req.user;
         
         if(!rentalapplicationdata || !form_id){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
-        }
-
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
         }
         
         // Check if the given user role is Individual or not
         if(user.role !== "Individual"){
             return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
         }
-
         
         // Update Rental Application form data 
         const rentalapplication = await rentalApplicationModel.findOneAndUpdate(
@@ -607,29 +721,17 @@ router.put("/rentalapplication/update", async(req,res) => {
     }
 });
 
-// Rental Application Form Update
-router.delete("/rentalapplication/update", async(req,res) => {
+// ? Delete
+router.delete("/rentalapplication/delete", checkTokenVerify, async(req,res) => {
     try{
 
-        let {form_id, token} = req.body;
+        let {form_id} = req.body;
+
+        // Middleware data
+        const user = req.user;
         
         if(!form_id){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
-        }
-
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
         }
         
         // Check if the given user role is Individual or not
@@ -644,11 +746,11 @@ router.delete("/rentalapplication/update", async(req,res) => {
             return res.status(404).json({ status: false, message: "Id is incorrect or may be any technical problem" });
         }
 
-        // Rental Application Form Updated Successfully
+        // Rental Application Form Deleted Successfully
         res.status(200).json({status: true, message: "Rental Application Form Deleted Successfully"});
 
     }catch(error){
-        // Handle server errors gracefully
+        // Handle server errors
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
     }

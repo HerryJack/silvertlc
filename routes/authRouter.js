@@ -7,18 +7,16 @@ const bcrypt = require("bcrypt");
 const { generateToken } = require("../middlewares/generateToken");
 // Utilities
 const { sendOTP } = require("../utils/sendOTP");
-// const {generateOTP} = require("../utils/generateOTP");
 
 // Models
-const userModel = require("../models/userModel");
-const individualModel = require("../models/individualModel");
-const corporateUserModel = require("../models/corporateUserModel");
-const insuranceCompanyModel = require("../models/insuranceCompanyModel");
-const serviceProviderModel = require("../models/serviceProviderModel");
-const propertyOwnerModel = require("../models/propertyOwnerModel");
-const hospitalCareModel = require("../models/hospitalCareModel");
-const realEstateModel = require("../models/realEstateModel");
-const nonProfitModel = require("../models/nonProfitModel");
+const userModel = require("../models/Role/userModel");
+const individualModel = require("../models/Role/individualModel");
+const serviceProviderModel = require("../models/Role/serviceProviderModel");
+const propertyOwnerModel = require("../models/Role/propertyOwnerModel");
+const hospitalCareModel = require("../models/Role/hospitalCareModel");
+const realEstateModel = require("../models/Role/realEstateModel");
+const nonProfitModel = require("../models/Role/nonProfitModel");
+const { checkToken } = require("../middlewares/checkToken");
 
 // Test Route (Simple route to check if the service is running)
 router.get("/", (req, res) => {
@@ -30,11 +28,17 @@ router.post("/register", async (req, res) => {
     try {
         const { name, email, password, phonenumber, role } = req.body;
 
+        // Validate input
+        if(!name || !email || !password || !phonenumber || !role){
+            return res.status(400).json({ status: false, message: "Required fields are missing" });
+        }
+
         // Check if the user already exists by email 
         const emailExists = await userModel.findOne({ email });
+        const phonenumberExists = await userModel.findOne({ phonenumber });
 
         // If Email or Phone Number is already in use, send a conflict response
-        if (emailExists) {
+        if (emailExists || phonenumberExists) {
             return res.status(409).json({ status: false, message: "User already exists" });
         }
 
@@ -76,24 +80,11 @@ router.post("/register", async (req, res) => {
 });
 
 // Again Send OTP for Verification
-router.post("/otpcheck/account-verified/resend", async (req, res) => {
+router.post("/otpcheck/account-verified/resend", checkToken, async (req, res) => {
     try {
-        const { token } = req.body;
 
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-            // If token is invalid or expired, return a 401 Unauthorized response
-            return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
+        // Middleware data
+        const user = req.user;
 
         if(user.verified){
             return res.status(409).json({ status: true, message: "User is already Verified"});
@@ -117,22 +108,20 @@ router.post("/otpcheck/account-verified/resend", async (req, res) => {
 });
 
 // OTP Verification Route (Verifies the OTP sent For Account Verification)
-router.post("/otpcheck/account-verified", async (req, res) => {
+router.post("/otpcheck/account-verified", checkToken, async (req, res) => {
     try {
-        const { otp, token } = req.body;
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-            // If token is invalid or expired, return a 401 Unauthorized response
-            return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
+        const { otp } = req.body;
 
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
+        // Validate input
+        if(!otp){
+            return res.status(400).json({ status: false, message: "Please provide otp" });
+        }
+    
+        // Middleware data
+        const user = req.user;
+
+        if(user.verified){
+            return res.status(409).json({ status: true, message: "User is already Verified"});
         }
 
         // Check if OTP is correct and verify its expiration time
@@ -146,7 +135,7 @@ router.post("/otpcheck/account-verified", async (req, res) => {
 
         // Generate new token for further actions
         const newToken = generateToken(user);
-        res.status(200).json({ status: true, message: "Account Verified verified successfully", data: {userid: user._id, name: user.name, email: user.email, role: user.role, token: newToken}  });
+        res.status(200).json({ status: true, message: "Account verified successfully", data: {userid: user._id, name: user.name, email: user.email, role: user.role, token: newToken}  });
     } catch (error) {
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message });
@@ -157,6 +146,11 @@ router.post("/otpcheck/account-verified", async (req, res) => {
 router.post("/login", async (req, res) => {
     try {
         const { email, password} = req.body;
+
+        // Validate input
+        if(!email || !password){
+            return res.status(400).json({ status: false, message: "Please provide email and password" });
+        }
 
         // Find user based on email and role
         const user = await userModel.findOne({ email});
@@ -188,10 +182,19 @@ router.post("/login", async (req, res) => {
 // Forgot Password Route (Initiates password reset process by sending OTP)
 router.post("/forgotpassword", async (req, res) => {
     try {
-        const { email } = req.body;
+        const { emailornumber } = req.body;
+
+         // Validate input
+        if(!emailornumber){
+            return res.status(400).json({ status: false, message: "Please provide email or phone number" });
+        }
+
+        // Determine if `data` is an email or phone number
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailornumber); // Simple email regex
+        const query = isEmail ? { email: emailornumber } : { phonenumber: emailornumber }; // Decide query dynamically
 
         // Check if user exists based on provided email
-        const user = await userModel.findOne({email});
+        const user = await userModel.findOne(query);
         if (!user) {
             return res.status(404).json({ status: false, message: "User not found" });
         }
@@ -217,24 +220,17 @@ router.post("/forgotpassword", async (req, res) => {
 });
 
 // OTP Verification Route (Verifies the OTP sent for password reset)
-router.post("/otpcheck", async (req, res) => {
+router.post("/otpcheck", checkToken, async (req, res) => {
     try {
-        const { otp, token } = req.body;
+        const { otp } = req.body;
 
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-            // If token is invalid or expired, return a 401 Unauthorized response
-            return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
+        // Validate input
+        if(!otp){
+            return res.status(400).json({ status: false, message: "Please provide otp" });
         }
 
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
+        // Middleware data
+        const user = req.user;
 
         // If User Account is not verified
         if (!user.verified) {
@@ -260,24 +256,17 @@ router.post("/otpcheck", async (req, res) => {
 });
 
 // Change Password Route (Handles changing the user's password after OTP verification)
-router.post("/changepassword", async (req, res) => {
+router.post("/changepassword", checkToken, async (req, res) => {
     try {
-        const { password, token } = req.body;
+        const { password } = req.body;
 
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-            // If token is invalid or expired, return a 401 Unauthorized response
-            return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
+        // Validate input
+        if(!password){
+            return res.status(400).json({ status: false, message: "Please provide password" });
         }
-        
-        // Find user based on decoded token data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
+
+        // Middleware data
+        const user = req.user;
 
         // If User Account is not verified
         if (!user.verified) {

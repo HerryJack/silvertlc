@@ -7,9 +7,10 @@ const bcrypt = require("bcrypt");
 const { generateToken } = require("../middlewares/generateToken");
 // Utilities
 const { sendOTP } = require("../utils/sendOTP");
-const userModel = require("../models/userModel");
+const userModel = require("../models/Role/userModel");
 const messageModel = require("../models/Message/MessageModel");
 const chatRoomModel = require("../models/Message/CharRoomModel");
+const { checkTokenVerify } = require("../middlewares/checkTokenVerify");
 // const {generateOTP} = require("../utils/generateOTP");
 
 router.get("/", (req,res)=>{
@@ -312,6 +313,26 @@ router.post("/chatroom/get-message", async(req,res) => {
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
     }
 });
+
+
+// Today
+router.post("/usergroup", checkTokenVerify, async(req,res)=>{
+  try{
+
+        // Middleware data
+        const user = req.user;
+  
+        const groups = await chatRoomModel.find({"members.email": user.email});
+  
+        // Message Send Successfully
+        res.status(200).json({status: true, message: "Message Send Successfully", groups: groups, email: user.email});
+  
+    }catch(error){
+        // Handle server errors gracefully
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+})
 
 
 module.exports = router;

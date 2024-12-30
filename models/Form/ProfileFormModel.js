@@ -1,11 +1,16 @@
 const mongoose = require("mongoose");
 
-// Schema for Corporate User -----> Non Profit Profile Form
-const NonProfitProfileSchema = mongoose.Schema({
+// Profile Form Schema for all the user role ----> Excluded Individual
+const ProfileSchema = mongoose.Schema({
     userId: { 
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Corporate User', 
+        ref: 'user', 
         required: true 
+    },
+    role: {
+        type: String, 
+        required: true, 
+        enum: ['Property Owner', 'Hospital System/Managed Care Organizations', 'Real Estate Professionals', 'Service Provider', 'Non Profits']
     },
     personalDetails: {
         firstName: { type: String, required: true },
@@ -39,11 +44,17 @@ const NonProfitProfileSchema = mongoose.Schema({
         servicesOffered: { type: String , required: true},
         industryInformation: { type: String , required: true},
     },
-    uploadFiles: [],
+    uploadFiles: {
+        productPortfolio: [],
+        awards: [],
+        testimonials: [],
+        certificate: [],
+        specialDesigned: []
+    },
     createdAt: {
         type: Date,
         default: Date.now
     }
 });
 
-module.exports = mongoose.model('NonProfitProfile', NonProfitProfileSchema);
+module.exports = mongoose.model('Profile', ProfileSchema);

@@ -20,11 +20,12 @@ const userSchema = mongoose.Schema({
     },
     phonenumber: {
         type: String,
+        unique: true,
         required: true
     },
     lastlogin: {
         type: Date,
-        default: Date.now  // Corrected typo here
+        default: Date.now  
     },
     changePassword: {
         type: Boolean, 
