@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const ServiceinfoSchema = mongoose.Schema({
     userId: { 
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Corporate User', 
+        ref: 'user', 
         required: true 
     },
     serviceDetails:{
@@ -16,11 +16,11 @@ const ServiceinfoSchema = mongoose.Schema({
         contactPerson: {type: String, required: true},
         officeHours: {type: String, required: true},
         website: {type: String, required: true},
-        indrustry1: {type: String, required: true},
+        industry1: {type: String, required: true},
         serviceProvided1: {type: String, required: true},
         specialityServices: {type: String, required: true},
         advanceServiceShedule: {type: String, required: true},
-        indrustry2: {type: String, required: true},
+        industry2: {type: String, required: true},
         serviceProvided2: {type: String, required: true},
     },
     uploadFiles: [],

@@ -6,6 +6,7 @@ const rentalApplicationModel = require("../models/Form/Individual/RentalApplicat
 const leaseFormModel = require("../models/Form/Individual/LeaseFormModel");
 const IndividualProfileFormModel = require("../models/Form/Individual/IndividualProfileFormModel");
 const { checkTokenVerify } = require("../middlewares/checkTokenVerify");
+const signupjourneyFormModel = require("../models/Form/SignUpJourney/signupjourneyFormModel");
 
 
 // Test Route (Simple route to check if the service is running)
@@ -76,6 +77,8 @@ router.post("/profile-form/submit", checkTokenVerify, async(req,res) => {
         if (!individualprofile_form) {
             return res.status(404).json({ status: false, message: "Something Went Wrong While Submitting" });
         }
+
+        const signupJourneyForm_find = await signupjourneyFormModel.findOneAndDelete({userId: user._id});
 
         // Profile Form Submitted Successfully
         res.status(200).json({status: true, message: `${user.role} user profile form submitted successfully`});
@@ -177,6 +180,8 @@ router.put("/profile-form/update", checkTokenVerify, async(req,res) => {
         if (!individualprofile_form) {
             return res.status(404).json({ status: false, message: "Id is incorrect or may be other technical problem" });
         }
+
+        const signupJourneyForm_find = await signupjourneyFormModel.findOneAndDelete({userId: user._id});
 
         // Profile Form Updated Successfully
         res.status(200).json({status: true, message: `${user.role} user profile form updated successfully`});
@@ -409,6 +414,39 @@ router.delete("/leaseform/delete", checkTokenVerify, async(req,res) => {
 
     }catch(error){
         // Handle server errors gracefully
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+});
+
+// ? Read Specific Lease Form Data
+router.post("/leaseform/get-specific", checkTokenVerify, async(req,res) => {
+    try{
+
+        const {formId} = req.body;
+
+        // Get the Lease Form data
+        const leaseForm_data = await leaseFormModel.findOne({_id: formId});
+
+        if(!leaseForm_data){
+            return res.status(404).send({status: false, message: "Something went wrong"});
+        }
+
+        res.status(200).json({status: true, message: "Lease Form Data", leaseFormData: leaseForm_data});
+
+    }catch(error){
+        // Handle server errors
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+});
+
+// ? Get Lease Form Data of all the users
+router.get("/leaseform/get-alluser", async(req,res)=>{
+    try{
+        const leaseForm_data = await leaseFormModel.find();
+        res.status(200).json({status: true, message: "Lease Form Data Send Successfully", leaseFormData: leaseForm_data});
+    }catch(error){
         console.error(error);
         res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
     }
@@ -748,6 +786,42 @@ router.delete("/rentalapplication/delete", checkTokenVerify, async(req,res) => {
 
         // Rental Application Form Deleted Successfully
         res.status(200).json({status: true, message: "Rental Application Form Deleted Successfully"});
+
+    }catch(error){
+        // Handle server errors
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+});
+
+// ? Get Rental Application Form Data of all the users
+router.get("/rentalapplication/get-alluser", async(req,res)=>{
+    try{
+        const rentalApplication_data = await rentalApplicationModel.find();
+        res.status(200).json({status: true, message: "Rental Application Form Data Send Successfully", rentalApplicationData: rentalApplication_data});
+    }catch(error){
+        // Handle server errors gracefully
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+});
+
+// ? Read Specific Rental Application Form Data
+router.post("/rentalapplication/get-specific", checkTokenVerify, async(req,res) => {
+    try{
+
+        const {formId} = req.body;
+
+        // Get Rental Application Data
+        const rentalapplication = await rentalApplicationModel.find({_id: formId});
+
+        
+        if(!rentalapplication){
+            return res.status(404).send({status: false, message: "Something went wrong"});
+        }
+
+        // Rental Application Form Data Sent Successfully
+        res.status(200).json({status: true, message: "Rental Application Form", rentalApplication_data: rentalapplication});
 
     }catch(error){
         // Handle server errors

@@ -121,7 +121,7 @@ router.post("/otpcheck/account-verified", checkToken, async (req, res) => {
         const user = req.user;
 
         if(user.verified){
-            return res.status(409).json({ status: true, message: "User is already Verified"});
+            return res.status(409).json({ status: false, message: "User is already Verified"});
         }
 
         // Check if OTP is correct and verify its expiration time

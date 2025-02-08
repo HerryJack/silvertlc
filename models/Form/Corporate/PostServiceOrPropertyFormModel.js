@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const PropertySchema = mongoose.Schema({
     userId: { 
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Corporate User', 
+        ref: 'user', // Corporate User Change
         required: true 
     },
     propertyDetails: {

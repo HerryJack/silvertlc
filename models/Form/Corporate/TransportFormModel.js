@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const TransportSchema = mongoose.Schema({
     userId: { 
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Corporate User', 
+        ref: 'user', 
         required: true 
     },
     vehicleDetails:{

@@ -5,18 +5,21 @@ const chatroomSchema = mongoose.Schema({
         type: String,
         required: true
     },
+    groupType:{
+        type: String,
+        enum: ["private", "public"],
+        default: "private"
+    },
     groupMessages:[{
         sender: {
             type: String,
             required: true
         },
-        isImage: {
-            type: Boolean,
-            required: true
-        },
-        message:{
+        imageMessage: [{
             type: String,
-            required: true
+        }],
+        textMessage:{
+            type: String,
         },
         date:{
             type: Date,

@@ -1,196 +1,62 @@
 const express = require("express");
 const router = express.Router();
+const Pusher = require("pusher");
 const jwt = require("jsonwebtoken");
 
 // 
-const userModel = require("../models/Role/userModel");
-const messageModel = require("../models/Message/MessageModel");
 const chatRoomModel = require("../models/Message/CharRoomModel");
 const { checkTokenVerify } = require("../middlewares/checkTokenVerify");
-// const {generateOTP} = require("../utils/generateOTP");
+const userModel = require("../models/Role/userModel");
 
-router.get("/", (req,res)=>{
-    console.log(req.query.sender)
-    res.send({message:"jidfhjd"})
-})
+// Utils
+const { uploadFile } = require("../utils/fileupload");
 
-// Lease Form Submission Router
-router.post("/send", async(req,res) => {
-    try{
-
-        let {messageData, token} = req.body;
-        
-        if(!messageData){
-            return res.status(400).json({status: false, message:  "Required fields are missing"})
-        }
-
-        // Destructuring Message Data
-        const {
-            sender,
-            reciever,
-            text
-        } = messageData;
-
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
-
-        const senderemail = await userModel.findOne({email: sender});
-        const recieveremail = await userModel.findOne({email: reciever});
-
-        if(!senderemail){
-            return res.status(404).json({status: false, message: "Sender not found"});
-        }else if(!recieveremail){
-            return res.status(404).json({status: false, message: "Reciever not found"});
-        }else if(!senderemail.verified){
-            return res.status(404).json({status: false, message: "Sender Account is not Verified"});
-        }else if(!recieveremail.verified){
-            return res.status(404).json({status: false, message: "Reciever Account is not Verified"});
-        }
-        
-        // Check if the given user role is Individual or not
-        // if(user.role !== "Individual"){
-        //     return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
-        // }
-
-        await messageModel.create({
-            sender,
-            reciever,
-            text,
-            date: new Date()
-        });
-
-        // Message Send Successfully
-        res.status(200).json({status: true, message: "Message Send Successfully"});
-
-    }catch(error){
-        // Handle server errors gracefully
-        console.error(error);
-        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
-    }
+const pusher = new Pusher({
+    appId: process.env.PUSHER_APP_ID,
+    key: process.env.PUSHER_KEY,
+    secret: process.env.PUSHER_SECRET,
+    cluster: process.env.PUSHER_CLUSTER,
+    useTLS: true
 });
 
-
-// Lease Form Submission Router
-router.get("/coversation", async(req,res) => {
+// Chat Room Create Router - Public or Private
+router.post("/chatroom/create", checkTokenVerify, async(req,res) => {
     try{
 
-        let {sender, reciever} = req.query;
-        
-        if(!sender || !reciever){
+        let {members, groupName, groupType} = req.body;
+
+        const user = req.user;
+
+        if(!groupName || !members || !groupType){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
-        }
-
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
-
-        const senderemail = await userModel.findOne({email: sender});
-        const recieveremail = await userModel.findOne({email: reciever});
-
-
-        if(!senderemail){
-            return res.status(404).json({status: false, message: "Sender not found"});
-        }else if(!recieveremail){
-            return res.status(404).json({status: false, message: "Reciever not found"});
-        }else if(!senderemail.verified){
-            return res.status(404).json({status: false, message: "Sender Account is not Verified"});
-        }else if(!recieveremail.verified){
-            return res.status(404).json({status: false, message: "Reciever Account is not Verified"});
-        }
-        
-        // Check if the given user role is Individual or not
-        // if(user.role !== "Individual"){
-        //     return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
-        // }
-
-        const messages = await messageModel.find({
-            $or:[
-                {sender: sender, reciever: reciever},
-                {sender: reciever, reciever: sender},
-            ]
-        }).sort({timestamp: 1});
-
-        // Message Send Successfully
-        res.status(200).json({status: true, message: "Message Send Successfully", message:messages});
-
-    }catch(error){
-        // Handle server errors gracefully
-        console.error(error);
-        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
-    }
-});
-
-
-//  Chat Room Create Router
-router.post("/chatroom/create", async(req,res) => {
-    try{
-
-        let {members, groupName, token} = req.body;
-        
-        if(!groupName || !token || !members){
-            return res.status(400).json({status: false, message:  "Required fields are missing"})
-        }
-
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
         }
         
         let members_list = [];
+        members_list.push({email: user.email})
         if(members.length > 0){
             for(const email of members){
-                members_list.push({email: email})
+                if(user.email !== email){
+                    members_list.push({email: email})
+                }
             }
         }
 
-        const chatRoom_exist = await chatRoomModel.findOne({groupName});
+        const chatRoom_exist = await chatRoomModel.findOne({groupName, groupType});
         if(chatRoom_exist){
             return res.status(409).send({status: false, message: "Group already exists"});
         }
 
         await chatRoomModel.create({
             groupName,
+            groupType,
             groupMessages:[],
             totalMembers: members_list.length,
             members: members_list,
             createdAt: new Date()
         });
 
-        // Message Send Successfully
-        res.status(200).json({status: true, message: "Message Send Successfully"});
+        // Chat Room Created Successfully
+        res.status(200).json({status: true, message: "Chat Room Created Successfully"});
 
     }catch(error){
         // Handle server errors gracefully
@@ -199,33 +65,20 @@ router.post("/chatroom/create", async(req,res) => {
     }
 });
 
-
-//  Chat Room Update Router
-router.put("/chatroom/update", async(req,res) => {
+// Chat Room Update Router - Private
+router.put("/chatroom/update", checkTokenVerify, async(req,res) => {
     try{
 
-        let {members, groupName, token} = req.body;
+        let {members, groupName} = req.body;
         
-        if(!groupName || !token || !members){
+        if(!groupName || !members){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
         }
 
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
+        //  Middleware Data
+        const user = req.user;
 
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
-
-        const chatRoom = await chatRoomModel.findOne({groupName});
+        const chatRoom = await chatRoomModel.findOne({groupName, groupType: "private"});
 
         if(!chatRoom){
             return res.status(404).send({status: false, message: "Group not found"});
@@ -256,8 +109,8 @@ router.put("/chatroom/update", async(req,res) => {
         // Save the updated chatRoom
         await chatRoom.save();
 
-        // Message Send Successfully
-        res.status(200).json({status: true, message: "Message Send Successfully"});
+        // Group Details Updated Successfully
+        res.status(200).json({status: true, message: "Group Details Updated Successfully"});
 
     }catch(error){
         // Handle server errors gracefully
@@ -266,32 +119,20 @@ router.put("/chatroom/update", async(req,res) => {
     }
 });
 
-//  Chat Room Update Router
-router.post("/chatroom/get-message", async(req,res) => {
+// Chat Room Get Message Router - Private
+router.post("/chatroom/get-message", checkTokenVerify, async(req,res) => {
     try{
 
-        let {groupName, token} = req.body;
+        let {groupName} = req.body;
         
-        if(!groupName || !token){
+        if(!groupName){
             return res.status(400).json({status: false, message:  "Required fields are missing"})
         }
 
-        // Decode the token to extract user data
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-        // If token is invalid or expired, return a 401 Unauthorized response
-        return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
+        // Middleware data
+        const user = req.user;
 
-        // Find user by the decoded token's data
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
-
-        const chatRoom = await chatRoomModel.findOne({groupName});
+        const chatRoom = await chatRoomModel.findOne({groupName, groupType: "private"});
         if(!chatRoom){
             return res.status(404).send({status: false, message: "Group not found"});
         }
@@ -300,8 +141,8 @@ router.post("/chatroom/get-message", async(req,res) => {
             return res.status(409).send({status: false, message: "You are not a member of this group"});
         }
 
-        // Message Send Successfully
-        res.status(200).json({status: true, message: "Message Send Successfully", groupMessages: chatRoom.groupMessages});
+        // Group Messages Send Successfully
+        res.status(200).json({status: true, message: "Group Messages Send Successfully", groupMessages: chatRoom.groupMessages});
 
     }catch(error){
         // Handle server errors gracefully
@@ -310,18 +151,17 @@ router.post("/chatroom/get-message", async(req,res) => {
     }
 });
 
-
-// Today
+// User Groups - Private
 router.post("/usergroup", checkTokenVerify, async(req,res)=>{
   try{
 
         // Middleware data
         const user = req.user;
   
-        const groups = await chatRoomModel.find({"members.email": user.email});
+        const groups = await chatRoomModel.find({"members.email": user.email, groupType: "private"});
   
         // Message Send Successfully
-        res.status(200).json({status: true, message: "Message Send Successfully", groups: groups, email: user.email});
+        res.status(200).json({status: true, message: "Message Send Successfully", groups: groups});
   
     }catch(error){
         // Handle server errors gracefully
@@ -330,5 +170,284 @@ router.post("/usergroup", checkTokenVerify, async(req,res)=>{
     }
 })
 
+// Mark As Read - Private
+router.post("/chatroom/markasread", checkTokenVerify, async(req,res)=>{
+    try{
+        // Middleware data
+        const user = req.user;
+
+        const {groupName} = req.body;
+
+        if(!groupName){
+            return res.status(400).json({status: false, message:  "Required fields are missing"})
+        }
+        
+        const chatRoom = await chatRoomModel.findOne({groupName, groupType: "private"});
+        if(!chatRoom){
+            return res.status(404).send({status: false, message: "Group not found"});
+        }
+
+        if(!chatRoom.members.some(member => member.email === user.email)){
+            return res.status(409).send({status: false, message: "You are not a member of this group"});
+        }
+
+        // Reset unread count for this user
+        chatRoom.members = chatRoom.members.map(member => {
+            if (member.email === user.email) {
+                member.unreadCount = 0;
+            }
+            return member;
+        });
+
+        await chatRoom.save();
+
+        // Reset unread count Successfully
+        res.status(200).json({status: true, message: "Reset unread count Successfully"});
+      }catch(error){
+        // Handle server errors gracefully
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+      }
+})
+
+// Chat Room Update Router - Public
+router.put("/chatroom/public/update", checkTokenVerify, async(req,res) => {
+    try{
+
+        let {groupName} = req.body;
+        
+        if(!groupName){
+            return res.status(400).json({status: false, message:  "Required fields are missing"})
+        }
+
+        //  Middleware Data
+        const user = req.user;
+
+        const chatRoom = await chatRoomModel.findOne({groupName, groupType: "public"});
+
+        if(!chatRoom){
+            return res.status(404).send({status: false, message: "Group not found"});
+        }
+        
+        let members_list = [];
+
+        const memberExists = chatRoom.members.some(alemail => alemail.email === user.email);
+        // IF member is not exist then add into a members_list 
+        if (!memberExists) {
+            chatRoom.members.push( {email: user.email} );
+        }else{
+            return res.status(403).send({status: false, message: "You have already member of this group"});
+        }
+
+        // Update the totalMembers count
+        chatRoom.totalMembers += members_list.length;
+
+        // Save the updated chatRoom
+        await chatRoom.save();
+
+        // Group Details Updated Successfully
+        res.status(200).json({status: true, message: "Group Details Updated Successfully"});
+
+    }catch(error){
+        // Handle server errors gracefully
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+});
+
+// Chat Room Get Message Router
+router.post("/chatroom/public/get-message", checkTokenVerify, async(req,res) => {
+    try{
+
+        let {groupName} = req.body;
+        
+        if(!groupName){
+            return res.status(400).json({status: false, message:  "Required fields are missing"})
+        }
+
+        // Middleware data
+        const user = req.user;
+
+        const chatRoom = await chatRoomModel.findOne({groupName, groupType: "public"});
+        if(!chatRoom){
+            return res.status(404).send({status: false, message: "Group not found"});
+        }
+        
+        if(!chatRoom.members.some(member => member.email === user.email)){
+            return res.status(409).send({status: false, message: "You are not a member of this group"});
+        }
+
+        // Group Messages Send Successfully
+        res.status(200).json({status: true, message: "Group Messages Send Successfully", groupMessages: chatRoom.groupMessages});
+
+    }catch(error){
+        // Handle server errors gracefully
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+});
+
+// User Groups
+router.post("/public/usergroup", checkTokenVerify, async(req,res)=>{
+  try{
+
+        // Middleware data
+        const user = req.user;
+  
+        const groups = await chatRoomModel.find({"members.email": user.email, groupType: "public"});
+  
+        // Message Send Successfully
+        res.status(200).json({status: true, message: "Message Send Successfully", groups: groups});
+  
+    }catch(error){
+        // Handle server errors gracefully
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+    }
+})
+
+// Mark As Read
+router.post("/chatroom/public/markasread", checkTokenVerify, async(req,res)=>{
+    try{
+        // Middleware data
+        const user = req.user;
+
+        const {groupName} = req.body;
+
+        if(!groupName){
+            return res.status(400).json({status: false, message:  "Required fields are missing"})
+        }
+        
+        const chatRoom = await chatRoomModel.findOne({groupName, groupType: "public"});
+        if(!chatRoom){
+            return res.status(404).send({status: false, message: "Group not found"});
+        }
+
+        if(!chatRoom.members.some(member => member.email === user.email)){
+            return res.status(409).send({status: false, message: "You are not a member of this group"});
+        }
+
+        // Reset unread count for this user
+        chatRoom.members = chatRoom.members.map(member => {
+            if (member.email === user.email) {
+                member.unreadCount = 0;
+            }
+            return member;
+        });
+
+        await chatRoom.save();
+
+        // Reset unread count Successfully
+        res.status(200).json({status: true, message: "Reset unread count Successfully"});
+      }catch(error){
+        // Handle server errors gracefully
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+      }
+})
+
+// PUSHER ------------->
+// Send Message with pusher
+router.post("/chatroom/sendmessage", async(req,res)=>{
+    try{
+        let {token, textMessage, groupName} = req.body;
+
+        if(!token){
+            return res.status(400).send({status: false, message: "Token is not provided"});
+        }
+
+        if(!groupName){
+            return res.status(400).send({status: false, message: "Group Name is not provided"});
+        }
+
+        let isImage = true;
+
+        // Check if file Send or not
+        if (!req.files || !req.files.imageMessage) {
+            isImage = false;
+        }
+
+        // Check if file or text message send or not
+        if (!isImage && !textMessage) {
+            return res.status(400).json({ status: false, message: "Message Data are missing. Please sent text or image message" });
+        }
+
+        let file;
+        
+        // If Image exits then extract the file from the request
+        if(isImage){
+            file = req.files.imageMessage;
+        }
+        
+        // Check token data is in the string format or not
+         if (typeof token === 'string') {
+            token = JSON.parse(token);
+        }
+        
+        // Verify the token
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
+        } catch (err) {
+            return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
+        }
+
+        // Find the user based on the decoded token
+        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
+        if (!user) {
+            return res.status(404).json({ status: false, message: "User not found" });
+        }
+
+        // Check the given user role 
+        if(!["Individual", "Service Provider", "Property Owner", "Hospital System/Managed Care Organizations", "Real Estate Professionals", "Non Profits"].includes(user.role)){
+            return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
+        }
+
+        let uploadFile_URL_arr
+        // Upload the file to Cloudinary
+        if(isImage){
+            uploadFile_URL_arr = await uploadFile(file, `Chat Message | ${groupName.trim()}`);  // Upload the file to Cloudinary
+        }
+        
+        const chatRoom = await chatRoomModel.findOne({groupName});
+        if(!chatRoom){
+            return res.status(404).send({status: false, message: "Group not found"});
+        }
+
+        if(!chatRoom.members.some(member => member.email === user.email)){
+            return res.status(409).send({status: false, message: "You are not a member of this group"});
+        }
+
+        const newMessage = {
+            sender: user.email,
+            imageMessage: isImage ? uploadFile_URL_arr : null,
+            textMessage: textMessage || null,
+            date: new Date(),
+        };
+
+        chatRoom.groupMessages.push(newMessage);
+
+        // Update unread counts for other members
+        chatRoom.members = chatRoom.members.map(member => {
+            if (member.email !== user.email) {
+                member.unreadCount += 1;
+            }
+            return member;
+        });
+
+        await chatRoom.save();
+
+        pusher.trigger(groupName.replace(/ /g, ""), "send-message", {
+            message: newMessage,
+        });
+
+        // Message Send Successfully
+        res.status(200).json({status: true, message: "Message Send Successfully"});
+      }catch(error){
+        // Handle server errors gracefully
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+      }
+})
 
 module.exports = router;
