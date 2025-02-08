@@ -65,6 +65,8 @@ router.post("/chatroom/create", checkTokenVerify, async(req,res) => {
     }
 });
 
+// x---------------------------------x----------------------------x
+
 // Chat Room Update Router - Private
 router.put("/chatroom/update", checkTokenVerify, async(req,res) => {
     try{
@@ -210,6 +212,112 @@ router.post("/chatroom/markasread", checkTokenVerify, async(req,res)=>{
       }
 })
 
+// PUSHER ------------->
+// Send Message with pusher
+router.post("/chatroom/sendmessage", async(req,res)=>{
+    try{
+        let {token, textMessage, groupName} = req.body;
+
+        if(!token){
+            return res.status(400).send({status: false, message: "Token is not provided"});
+        }
+
+        if(!groupName){
+            return res.status(400).send({status: false, message: "Group Name is not provided"});
+        }
+
+        let isImage = true;
+
+        // Check if file Send or not
+        if (!req.files || !req.files.imageMessage) {
+            isImage = false;
+        }
+
+        // Check if file or text message send or not
+        if (!isImage && !textMessage) {
+            return res.status(400).json({ status: false, message: "Message Data are missing. Please sent text or image message" });
+        }
+
+        let file;
+        
+        // If Image exits then extract the file from the request
+        if(isImage){
+            file = req.files.imageMessage;
+        }
+        
+        // Check token data is in the string format or not
+         if (typeof token === 'string') {
+            token = JSON.parse(token);
+        }
+        
+        // Verify the token
+        let decoded;
+        try {
+            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
+        } catch (err) {
+            return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
+        }
+
+        // Find the user based on the decoded token
+        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
+        if (!user) {
+            return res.status(404).json({ status: false, message: "User not found" });
+        }
+
+        // Check the given user role 
+        if(!["Individual", "Service Provider", "Property Owner", "Hospital System/Managed Care Organizations", "Real Estate Professionals", "Non Profits"].includes(user.role)){
+            return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
+        }
+
+        let uploadFile_URL_arr
+        // Upload the file to Cloudinary
+        if(isImage){
+            uploadFile_URL_arr = await uploadFile(file, `Chat Message | ${groupName.trim()}`);  // Upload the file to Cloudinary
+        }
+        
+        const chatRoom = await chatRoomModel.findOne({groupName});
+        if(!chatRoom){
+            return res.status(404).send({status: false, message: "Group not found"});
+        }
+
+        if(!chatRoom.members.some(member => member.email === user.email)){
+            return res.status(409).send({status: false, message: "You are not a member of this group"});
+        }
+
+        const newMessage = {
+            sender: user.email,
+            imageMessage: isImage ? uploadFile_URL_arr : null,
+            textMessage: textMessage || null,
+            date: new Date(),
+        };
+
+        chatRoom.groupMessages.push(newMessage);
+
+        // Update unread counts for other members
+        chatRoom.members = chatRoom.members.map(member => {
+            if (member.email !== user.email) {
+                member.unreadCount += 1;
+            }
+            return member;
+        });
+
+        await chatRoom.save();
+
+        pusher.trigger(groupName.replace(/ /g, ""), "send-message", {
+            message: newMessage,
+        });
+
+        // Message Send Successfully
+        res.status(200).json({status: true, message: "Message Send Successfully"});
+      }catch(error){
+        // Handle server errors gracefully
+        console.error(error);
+        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
+      }
+})
+
+// x-------------------------------x-------------------------------x
+
 // Chat Room Update Router - Public
 router.put("/chatroom/public/update", checkTokenVerify, async(req,res) => {
     try{
@@ -346,108 +454,6 @@ router.post("/chatroom/public/markasread", checkTokenVerify, async(req,res)=>{
       }
 })
 
-// PUSHER ------------->
-// Send Message with pusher
-router.post("/chatroom/sendmessage", async(req,res)=>{
-    try{
-        let {token, textMessage, groupName} = req.body;
-
-        if(!token){
-            return res.status(400).send({status: false, message: "Token is not provided"});
-        }
-
-        if(!groupName){
-            return res.status(400).send({status: false, message: "Group Name is not provided"});
-        }
-
-        let isImage = true;
-
-        // Check if file Send or not
-        if (!req.files || !req.files.imageMessage) {
-            isImage = false;
-        }
-
-        // Check if file or text message send or not
-        if (!isImage && !textMessage) {
-            return res.status(400).json({ status: false, message: "Message Data are missing. Please sent text or image message" });
-        }
-
-        let file;
-        
-        // If Image exits then extract the file from the request
-        if(isImage){
-            file = req.files.imageMessage;
-        }
-        
-        // Check token data is in the string format or not
-         if (typeof token === 'string') {
-            token = JSON.parse(token);
-        }
-        
-        // Verify the token
-        let decoded;
-        try {
-            decoded = jwt.verify(token, process.env.JWT_KEY);  // Verifying the JWT token
-        } catch (err) {
-            return res.status(401).json({ status: false, message: "Invalid or Expired Token" });
-        }
-
-        // Find the user based on the decoded token
-        const user = await userModel.findOne({ name: decoded.name, email: decoded.email, role: decoded.role });
-        if (!user) {
-            return res.status(404).json({ status: false, message: "User not found" });
-        }
-
-        // Check the given user role 
-        if(!["Individual", "Service Provider", "Property Owner", "Hospital System/Managed Care Organizations", "Real Estate Professionals", "Non Profits"].includes(user.role)){
-            return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
-        }
-
-        let uploadFile_URL_arr
-        // Upload the file to Cloudinary
-        if(isImage){
-            uploadFile_URL_arr = await uploadFile(file, `Chat Message | ${groupName.trim()}`);  // Upload the file to Cloudinary
-        }
-        
-        const chatRoom = await chatRoomModel.findOne({groupName});
-        if(!chatRoom){
-            return res.status(404).send({status: false, message: "Group not found"});
-        }
-
-        if(!chatRoom.members.some(member => member.email === user.email)){
-            return res.status(409).send({status: false, message: "You are not a member of this group"});
-        }
-
-        const newMessage = {
-            sender: user.email,
-            imageMessage: isImage ? uploadFile_URL_arr : null,
-            textMessage: textMessage || null,
-            date: new Date(),
-        };
-
-        chatRoom.groupMessages.push(newMessage);
-
-        // Update unread counts for other members
-        chatRoom.members = chatRoom.members.map(member => {
-            if (member.email !== user.email) {
-                member.unreadCount += 1;
-            }
-            return member;
-        });
-
-        await chatRoom.save();
-
-        pusher.trigger(groupName.replace(/ /g, ""), "send-message", {
-            message: newMessage,
-        });
-
-        // Message Send Successfully
-        res.status(200).json({status: true, message: "Message Send Successfully"});
-      }catch(error){
-        // Handle server errors gracefully
-        console.error(error);
-        res.status(500).json({ status: false, message: "Internal Server Error", error: error.message});
-      }
-})
+// x---------------------------------x--------------------------------x
 
 module.exports = router;
