@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const chatroomSchema = mongoose.Schema({
+const publicChatroomSchema = mongoose.Schema({
     groupName: {
         type: String,
         required: true
@@ -42,4 +42,4 @@ const chatroomSchema = mongoose.Schema({
     }
 })
 
-module.exports = mongoose.model('chat room', chatroomSchema);
+module.exports = mongoose.model('public chat room', publicChatroomSchema);

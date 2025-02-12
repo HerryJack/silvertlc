@@ -951,19 +951,34 @@ router.post("/rentalapplication-request/approved-propertyowner", checkTokenVerif
         if(!["Service Provider", "Property Owner", "Hospital System/Managed Care Organizations", "Real Estate Professionals", "Non Profits"].includes(user.role)){
             return res.status(403).json({status: false, message: "Access denied. Insufficient permissions"});
         }
-
-        const RentalFormFormData = await propertyPurchase_RentalApplication_Approved_Model.findOneAndUpdate(
-            { _id: form_id },
-            {
-                $set: {
-                    approved,
-                    reject
-                }
-            }
-        );
-
-        if (!RentalFormFormData) {
+        
+        const RentalFormData = await propertyPurchase_RentalApplication_Approved_Model.findOne({_id: form_id});
+        if (!RentalFormData) {
             return res.status(404).json({ status: false, message: "Something went wrong or may be ID is incorrect" });
+        }
+        RentalFormData.approved = approved;
+        RentalFormData.reject = reject;
+        await RentalFormData.save();
+
+        const isPropertyPurchase = await PropertyPurchase.findOne({"propertypurchase.propertyId": RentalFormData.propertyId, "propertypurchase._id": RentalFormData.propertyFormId});
+
+        if(!isPropertyPurchase){
+            return res.status(403).send({status: false, message: "This property is not purchased by any user"});
+        }
+
+        let propertyUpdated = false;
+
+        isPropertyPurchase.propertypurchase.forEach(property => {
+            if (property.propertyId.toString() === RentalFormData.propertyId.toString() &&
+                property._id.toString() === RentalFormData.propertyFormId.toString()) {
+                property.approved = approved;
+                property.reject = reject;
+                propertyUpdated = true;
+            }
+        });
+
+        if (propertyUpdated) {
+            await isPropertyPurchase.save();
         }
 
         res.status(200).json({status: true, message: `Property Purchased Rental Application Form Data ${approved ? "Approved" : "Rejected"} Successfully`});

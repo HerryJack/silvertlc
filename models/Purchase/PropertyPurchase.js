@@ -10,6 +10,14 @@ const propertyPurchaseSchema = ({
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Property'
         },
+        approved:{
+            type: Boolean,
+            default: false
+        },
+        reject:{
+            type: Boolean,
+            default: false
+        },
         purchaseDate: { 
             type: Date,
             default: Date.now

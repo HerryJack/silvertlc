@@ -1340,15 +1340,15 @@ router.get("/get-userdata", async(req,res)=>{
     }
 });
 
-// All User Get - With Name
-router.get("/get-userdata-name", async(req,res)=>{
+// All User Get - With Email
+router.get("/get-userdata-email", async(req,res)=>{
     try{
-        const {name} = req.query;
+        const {email} = req.query;
          // Validate input
-         if (!name) {
-            return res.status(400).json({ status: false, message: "Name parameter is required" });
+         if (!email) {
+            return res.status(400).json({ status: false, message: "Email parameter is required" });
         }
-        const userfind = await userModel.find({name: name, verified: true}).select('-password -changePassword -verifiedtoken -verified -verifiedtokenExpiresAt -lastlogin -resetPasswordtoken -resetPasswordtokenExpiresAt -__v')
+        const userfind = await userModel.findOne({email, verified: true}).select('-password -changePassword -verifiedtoken -verified -verifiedtokenExpiresAt -lastlogin -resetPasswordtoken -resetPasswordtokenExpiresAt -__v')
 
         res.status(200).json({status: true, message: "User Data Send Successfully", usersData: userfind});
 
